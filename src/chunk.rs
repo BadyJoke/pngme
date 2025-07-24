@@ -1,10 +1,19 @@
+use std::{fmt::Display, io::{BufReader, Read}};
+
+use thiserror::Error;
+
 use crate::chunk_type::ChunkType;
 
+#[derive(Error, Debug)]
+enum ChunkError {
+    #[error("Could not convert chunk to string.")]
+    InvalidString,
+}
 
 pub struct Chunk {
     data: Vec<u8>,
     chunk_type: ChunkType,
-    crc: u32
+    crc: u32,
 }
 
 impl Chunk {
@@ -15,7 +24,11 @@ impl Chunk {
 
         let crc = X.checksum(&chunk_data);
 
-        Self { data, chunk_type, crc }
+        Self {
+            data,
+            chunk_type,
+            crc,
+        }
     }
 
     pub fn length(&self) -> u32 {
@@ -34,8 +47,67 @@ impl Chunk {
         self.crc
     }
 
-    fn data_as_string(&self) -> Result<String> {
-        String::from_utf8(self.data)
+    pub fn data_as_string(&self) -> crate::Result<String> {
+        Ok(
+            String::from_utf8(self.data.clone())
+                .map_err(|_| Box::new(ChunkError::InvalidString))?,
+        )
+    }
+
+    pub fn as_bytes(&self) -> Vec<u8> {
+        self.data
+            .len()
+            .to_be_bytes()
+            .iter()
+            .chain(self.chunk_type.bytes().iter())
+            .chain(self.data.iter())
+            .chain(self.crc.to_be_bytes().iter())
+            .copied()
+            .collect()
+    }
+}
+
+impl TryFrom<&[u8]> for Chunk {
+    type Error = crate::Error;
+
+    fn try_from(value: &[u8]) -> crate::Result<Self> {
+        let mut reader = BufReader::new(value);
+        let mut buffer: [u8; 4] = [0, 0, 0, 0];
+
+        // The bytes are represented as follows:
+        // +-------------+------------+-------------------+---------+
+        // | Data Length | Chunk Type |       Data        |   CRC   |
+        // +-------------+------------+-------------------+---------+
+        // | 4 bytes     | 4 bytes    | Data Length bytes | 4 bytes |
+        // +-------------+------------+-------------------+---------+
+
+        // Read the first for byte that containes data lenght
+        reader.read_exact(&mut buffer)?;
+        let data_lenght = u32::from_be_bytes(buffer);
+
+        // Then read the chunk type
+        reader.read_exact(&mut buffer)?;
+        let chunk_type = ChunkType::try_from(buffer)?;
+
+        // We create a buffer of size Data Length
+        let mut data_buffer = vec![0u8; data_lenght as usize];
+        reader.read_exact(&mut data_buffer)?;
+
+        // Then read the CRC
+        reader.read_exact(&mut buffer)?;
+        let crc = u32::from_be_bytes(buffer);
+
+        Ok(Chunk {
+            data: data_buffer,
+            chunk_type: chunk_type,
+            crc: crc
+        })
+    }
+}
+
+impl Display for Chunk {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        todo!()
     }
 }
 
@@ -59,14 +131,16 @@ mod tests {
             .chain(crc.to_be_bytes().iter())
             .copied()
             .collect();
-        
+
         Chunk::try_from(chunk_data.as_ref()).unwrap()
     }
 
     #[test]
     fn test_new_chunk() {
         let chunk_type = ChunkType::from_str("RuSt").unwrap();
-        let data = "This is where your secret message will be!".as_bytes().to_vec();
+        let data = "This is where your secret message will be!"
+            .as_bytes()
+            .to_vec();
         let chunk = Chunk::new(chunk_type, data);
         assert_eq!(chunk.length(), 42);
         assert_eq!(chunk.crc(), 2882656334);
@@ -161,9 +235,9 @@ mod tests {
             .chain(crc.to_be_bytes().iter())
             .copied()
             .collect();
-        
+
         let chunk: Chunk = TryFrom::try_from(chunk_data.as_ref()).unwrap();
-        
+
         let _chunk_string = format!("{}", chunk);
     }
 }
