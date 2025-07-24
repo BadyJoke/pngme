@@ -90,7 +90,7 @@ impl FromStr for ChunkType {
 impl fmt::Display for ChunkType {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let repr: String = self.bytes.iter().map(|b| char::from(*b)).collect();
-        write!(f, "{}", repr)
+        write!(f, "{repr}")
     }
 }
 
