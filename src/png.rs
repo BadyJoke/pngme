@@ -29,14 +29,14 @@ impl Png {
     }
 
     pub fn from_chunks(chunks: Vec<Chunk>) -> Self {
-        Self { chunks: chunks }
+        Self { chunks }
     }
 
     pub fn remove_first_chunk(&mut self, chunk_type: &str) -> Result<Chunk, PngError> {
         if let Some(pos) = self
             .chunks
             .iter()
-            .position(|chunk| chunk.chunk_type().to_string() == chunk_type)
+            .position(|chunk| chunk.chunk_type().bytes() == chunk_type.as_bytes())
         {
             Ok(self.chunks.remove(pos))
         } else {
@@ -55,15 +55,15 @@ impl Png {
     }
 
     pub fn chunk_by_type(&self, chunk_type: &str) -> Option<&Chunk> {
-        self.chunks
+        self.chunks()
             .iter()
-            .find(|&chunk| chunk.chunk_type().to_string() == chunk_type)
+            .find(|&chunk| chunk.chunk_type().bytes() == chunk_type.as_bytes())
     }
 
     pub fn as_bytes(&self) -> Vec<u8> {
         let bytes: Vec<u8> = self.chunks.iter().flat_map(|chunk| chunk.as_bytes()).collect();
 
-        Png::STANDARD_HEADER
+        self.header()
             .iter()
             .chain(bytes.iter())
             .cloned()
@@ -125,18 +125,17 @@ impl TryFrom<&[u8]> for Png {
             chunks.push(chunk);
         }
 
-        Ok(Png { chunks: chunks })
+        Ok(Png::from_chunks(chunks))
     }
 }
 
 impl Display for Png {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Png {{ header: {:?} }}", Png::STANDARD_HEADER)?;
+        write!(f, "Png {{ header: {:?} }}\n", Png::STANDARD_HEADER)?;
 
         for chunk in self.chunks.iter() {
-            write!(f, "{}\t", chunk)?;
+            write!(f, "{chunk}\n")?;
         }
-
         write!(f, "")
     }
 }

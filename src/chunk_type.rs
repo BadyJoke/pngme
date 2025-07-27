@@ -1,5 +1,5 @@
 use core::{convert::TryFrom, str::FromStr};
-use std::fmt::{self, Error};
+use std::fmt::{self};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -89,8 +89,33 @@ impl FromStr for ChunkType {
 
 impl fmt::Display for ChunkType {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let repr: String = self.bytes.iter().map(|b| char::from(*b)).collect();
-        write!(f, "{repr}")
+        let name = String::from_utf8(self.bytes.to_vec()).unwrap();
+
+        let ancillary = if self.is_critical() {
+            "critical"
+        } else {
+            "ancillary"
+        };
+
+        let private = if self.is_public() {
+            "public"
+        } else {
+            "private"
+        };
+
+        let valid = if self.is_valid() {
+            "valid"
+        } else {
+            "invalid"
+        };
+
+        let safe_to_copy = if self.is_safe_to_copy() {
+            "safe to copy"
+        } else {
+            "unsafe to copy"
+        };
+
+        write!(f, "{{ {name}: {ancillary}, {private}, {valid}, {safe_to_copy} }}")
     }
 }
 

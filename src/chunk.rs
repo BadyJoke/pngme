@@ -57,7 +57,7 @@ impl Chunk {
     }
 
     pub fn as_bytes(&self) -> Vec<u8> {
-        let length = self.data.len() as u32;
+        let length = self.data().len() as u32;
         length
             .to_be_bytes()
             .iter()
@@ -145,7 +145,7 @@ impl Display for Chunk {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{{ length: {:4} type: {}, data: {}, crc {:10} }}",
+            "{{ length: {} type: {}, data: {}, crc {:10} }}",
             self.length(),
             self.chunk_type,
             self.data_as_string()
