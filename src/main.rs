@@ -1,21 +1,45 @@
 use clap::Parser;
 
-use crate::{args::{Arguments, Commands}, commands::encode, error::PngMeError};
+use crate::{
+    args::{Arguments, Commands},
+    commands::{decode, encode, print, remove},
+};
 
-mod error;
 mod args;
 mod chunk;
 mod chunk_type;
 mod commands;
+mod error;
 mod png;
 
-fn main() -> Result<(), PngMeError>{
+fn main() {
     let cli = Arguments::parse();
 
     match &cli.command {
-        Commands::Encode { file, chunk_name, message, output } => encode(file, chunk_name, message, output),
-        Commands::Decode { file, chunk_name } => todo!(),
-        Commands::Remove { file, chunk_name } => todo!(),
-        Commands::Print { file } => todo!(),
+        Commands::Encode {
+            file,
+            chunk_name,
+            message,
+            output,
+        } => {
+            if let Err(err) = encode(file, chunk_name, message, output) {
+                eprintln!("Could not encode message into the file: {err}")
+            }
+        },
+        Commands::Decode { file, chunk_name } => {
+            if let Err(err) = decode(file, chunk_name) {
+                eprintln!("Could not decode the file: {err}")
+            }
+        },
+        Commands::Remove { file, chunk_name } => {
+            if let Err(err) = remove(file, chunk_name) {
+                eprintln!("Could not remove the chunk: {err}")
+            }
+        },
+        Commands::Print { file } => {
+            if let Err(err) = print(file) {
+                eprintln!("Could not print the file chunks: {err}")
+            }
+        },
     }
 }
