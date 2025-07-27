@@ -1,5 +1,5 @@
 use core::{convert::TryFrom, str::FromStr};
-use std::fmt;
+use std::fmt::{self, Error};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -63,25 +63,25 @@ impl ChunkType {
 }
 
 impl TryFrom<[u8; 4]> for ChunkType {
-    type Error = crate::Error;
+    type Error = ChunkTypeError;
 
-    fn try_from(value: [u8; 4]) -> crate::Result<Self> {
+    fn try_from(value: [u8; 4]) -> Result<Self, Self::Error> {
         match value.into_iter().all(|val| val.is_ascii_alphabetic()) {
             true => Ok(ChunkType { bytes: value }),
-            false => Err(Box::new(ChunkTypeError::NotASCIILetters)),
+            false => Err(ChunkTypeError::NotASCIILetters),
         }
     }
 }
 
 impl FromStr for ChunkType {
-    type Err = crate::Error;
+    type Err = ChunkTypeError;
 
-    fn from_str(s: &str) -> crate::Result<Self> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         let bytes: [u8; 4] = s.as_bytes().try_into().map_err(|_| {
-            Box::new(ChunkTypeError::InvalidNameLenght {
+            ChunkTypeError::InvalidNameLenght {
                 expected: 4,
                 actual: s.len(),
-            })
+            }
         })?;
         ChunkType::try_from(bytes)
     }

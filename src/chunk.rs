@@ -1,15 +1,15 @@
-use std::{fmt::Display, io::{BufReader, Read}};
-
+use crate::chunk_type::{ChunkType, ChunkTypeError};
+use crc::Crc;
+use std::{
+    fmt::Display,
+    io::{self, BufReader, Read},
+    string::FromUtf8Error,
+};
 use thiserror::Error;
 
-use crate::chunk_type::ChunkType;
+const MIN_CHUNK_SIZE: u32 = 12;
 
-#[derive(Error, Debug)]
-enum ChunkError {
-    #[error("Could not convert chunk to string.")]
-    InvalidString,
-}
-
+#[derive(Debug, PartialEq, Eq)]
 pub struct Chunk {
     data: Vec<u8>,
     chunk_type: ChunkType,
@@ -18,11 +18,16 @@ pub struct Chunk {
 
 impl Chunk {
     pub fn new(chunk_type: ChunkType, data: Vec<u8>) -> Self {
-        const X: crc::Crc<u32> = crc::Crc::<u32>::new(&crc::CRC_32_ISO_HDLC);
+        const CRC_ALG: Crc<u32> = Crc::<u32>::new(&crc::CRC_32_ISO_HDLC);
 
-        let chunk_data = [&data[..], &chunk_type.bytes()].concat();
+        let crc_bytes: Vec<u8> = chunk_type
+            .bytes()
+            .iter()
+            .chain(data.iter())
+            .cloned()
+            .collect();
 
-        let crc = X.checksum(&chunk_data);
+        let crc = CRC_ALG.checksum(&crc_bytes);
 
         Self {
             data,
@@ -47,16 +52,13 @@ impl Chunk {
         self.crc
     }
 
-    pub fn data_as_string(&self) -> crate::Result<String> {
-        Ok(
-            String::from_utf8(self.data.clone())
-                .map_err(|_| Box::new(ChunkError::InvalidString))?,
-        )
+    pub fn data_as_string(&self) -> Result<String, FromUtf8Error> {
+        String::from_utf8(self.data.clone())
     }
 
     pub fn as_bytes(&self) -> Vec<u8> {
-        self.data
-            .len()
+        let length = self.data.len() as u32;
+        length
             .to_be_bytes()
             .iter()
             .chain(self.chunk_type.bytes().iter())
@@ -67,10 +69,35 @@ impl Chunk {
     }
 }
 
-impl TryFrom<&[u8]> for Chunk {
-    type Error = crate::Error;
+#[derive(Error, Debug)]
+pub enum ChunkParserError {
+    #[error(transparent)]
+    ReaderError(#[from] io::Error),
 
-    fn try_from(value: &[u8]) -> crate::Result<Self> {
+    #[error("chunk did not contain all the required data")]
+    Incomplete,
+
+    #[error("invalid length field (expected {expected:?}, found {found:?})")]
+    InvalidLengthField { expected: u32, found: u32 },
+
+    #[error(transparent)]
+    InvalidChunkType(#[from] ChunkTypeError),
+
+    #[error("parsed checksum didn't match calculated checksum")]
+    InvalidChecksum,
+}
+
+impl TryFrom<&[u8]> for Chunk {
+    type Error = ChunkParserError;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        // length (4) + type (4) + data (0) + crc (4) => 12
+        // 12 is the smallest chunk that can exist. By checking the length
+        // beforehand we can ensure that there will be no panics.
+        if value.len() < 12 {
+            return Err(ChunkParserError::Incomplete);
+        }
+
         let mut reader = BufReader::new(value);
         let mut buffer: [u8; 4] = [0, 0, 0, 0];
 
@@ -85,6 +112,13 @@ impl TryFrom<&[u8]> for Chunk {
         reader.read_exact(&mut buffer)?;
         let data_lenght = u32::from_be_bytes(buffer);
 
+        if (value.len() as u32) - MIN_CHUNK_SIZE != data_lenght {
+            return Err(ChunkParserError::InvalidLengthField {
+                expected: value.len() as u32 - 12,
+                found: data_lenght,
+            });
+        }
+
         // Then read the chunk type
         reader.read_exact(&mut buffer)?;
         let chunk_type = ChunkType::try_from(buffer)?;
@@ -97,17 +131,27 @@ impl TryFrom<&[u8]> for Chunk {
         reader.read_exact(&mut buffer)?;
         let crc = u32::from_be_bytes(buffer);
 
-        Ok(Chunk {
-            data: data_buffer,
-            chunk_type: chunk_type,
-            crc: crc
-        })
+        let chunk = Self::new(chunk_type, data_buffer);
+
+        if crc != chunk.crc() {
+            return Err(ChunkParserError::InvalidChecksum);
+        }
+
+        Ok(chunk)
     }
 }
 
 impl Display for Chunk {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        write!(
+            f,
+            "{{ length: {:4} type: {}, data: {}, crc {:10} }}",
+            self.length(),
+            self.chunk_type,
+            self.data_as_string()
+                .unwrap_or_else(|_| "<Invalid UTF-8>".to_string()),
+            self.crc
+        )
     }
 }
 
