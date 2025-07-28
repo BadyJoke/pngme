@@ -6,4 +6,6 @@ edition = "2024"
 [dependencies]
 clap = { version = "4.5.41", features = ["derive"] }
 crc = "3.3.0"
+reqwest = { version = "0.12.22", features = ["blocking"] }
 thiserror = "2.0.12"
+url = "2.5.4"
