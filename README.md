@@ -11,6 +11,7 @@ This CLI has been made following the [PNGme: An Intermediate Rust Project](https
 
 ## ✨ Features
 
+- Dowload images
 - Encode and decode secret messages
 - Remove secret messages
 - Print chunks of the PNG file
@@ -38,13 +39,14 @@ cd pngme && cargo install project-name
 ### Encode a secret message into a file
 
 ```sh
-pngme encode <FILE_PATH> <CHUNK_TYPE> <MESSAGE>
+pngme encode <FILE_PATH or URL> <CHUNK_TYPE> <MESSAGE>
 ```
 
 Example:
 
 ```sh
 pngme encode file.png mySc "Secret message hiding in a PNG file"
+pngme encode https://upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png mySc "Secret message hiding in a PNG file"
 ```
 
 ### Decode a secret message into a file

@@ -14,7 +14,7 @@ pub struct Arguments {
 pub enum Commands {
     /// Encode a message into an image
     Encode {
-        /// Path to the png file
+        /// Path or Url to the png file 
         file: PathBuf,
         /// Name of the chunk embedding the message
         chunk_name: String,
